@@ -5,10 +5,11 @@ use std::net::SocketAddr;
 use std::sync::{Arc};
 use futures_channel::mpsc::{unbounded, UnboundedSender};
 use futures_util::StreamExt;
-use log::debug;
+use log::{debug, error};
+use serde_json::Value;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
 use crate::structs::{Command, CommandType, SocketError, SocketErrorType};
 use crate::structs::CommandType::Init;
@@ -63,13 +64,50 @@ impl Server {
             let init_command = command.init_command.unwrap();
             match init_command.r#type {
                 Subscriber => {
-                    subscriber_peers.write().await.insert(addr.to_string(), tx);
+                    subscriber_peers.write().await.insert(addr.to_string(), tx.clone());
+                    Self::provider_loop(tx, rx);
                 }
                 Provider => {
-                    provider_peers.write().await.insert(addr.to_string(), tx);
+                    provider_peers.write().await.insert(addr.to_string(), tx.clone());
+                    Self::subscriber_loop(tx, rx);
                 }
             }
         }
+    }
+
+    fn subscriber_loop(tx: Sender<Command>, mut rx: Receiver<Command>) {
+        tokio::spawn(async move {
+            loop {
+                let command = rx.recv().await;
+                if command.is_none() {
+                    debug!("Loop ended");
+                    break;
+                }
+                let command = command.unwrap();
+            }
+        });
+    }
+
+    fn provider_loop(tx: Sender<Command>, mut rx: Receiver<Command>) {
+        tokio::spawn(async move {
+            loop {
+                let command = rx.recv().await;
+                if command.is_none() {
+                    debug!("Loop ended");
+                    break;
+                }
+                let command = command.unwrap();
+                match command.r#type {
+                    CommandType::Data => {
+                        let json: Value = serde_json::from_str(command.data.as_ref().unwrap()).unwrap();
+                        
+                    }
+                    _ => {
+                        error!("Unknown command: {:#?}", command);
+                    }
+                }
+            }
+        });
     }
 
     pub async fn start(&self, addr: &str) {
