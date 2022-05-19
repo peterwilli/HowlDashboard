@@ -585,6 +585,8 @@ dependencies = [
  "futures-channel",
  "futures-util",
  "log",
+ "rand",
+ "rand_chacha",
  "serde",
  "serde_json",
  "strum",

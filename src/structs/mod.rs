@@ -5,3 +5,4 @@ mod universal_number;
 
 pub use command::*;
 pub use socket_error::{SocketError, SocketErrorType};
+pub use universal_number::UniversalNumber;
