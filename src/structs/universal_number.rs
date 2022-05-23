@@ -1,7 +1,7 @@
 use std::fmt;
 use std::ops::{Add, AddAssign};
 
-#[derive(Copy, Clone, Default)]
+#[derive(Clone, Default, Copy, Debug)]
 pub struct UniversalNumber {
     pub(crate) n: Option<i64>,
     pub(crate) f: Option<f64>
@@ -20,14 +20,14 @@ impl UniversalNumber {
         if n.is_ok() {
             return Ok(Self {
                 n: Some(n.unwrap()),
-                f: None
+                ..Default::default()
             });
         }
         let f = number_str.parse::<f64>();
         if f.is_ok() {
             return Ok(Self {
-                n: None,
-                f: Some(f.unwrap())
+                f: Some(f.unwrap()),
+                ..Default::default()
             });
         }
         return Err("Parse error");
@@ -36,7 +36,7 @@ impl UniversalNumber {
 
 impl AddAssign for UniversalNumber {
     fn add_assign(&mut self, other: Self) {
-        *self += other
+        *self = *self + other;
     }
 }
 
@@ -64,6 +64,28 @@ impl Add for UniversalNumber {
         }
         return new_num;
     }
+}
+
+impl PartialEq<Self> for UniversalNumber {
+    fn eq(&self, other: &Self) -> bool {
+        return if self.n.is_some() {
+            if other.n.is_some() {
+                self.n.unwrap() == other.n.unwrap()
+            } else {
+                (self.n.unwrap() as f64) == other.f.unwrap()
+            }
+        } else {
+            if other.n.is_some() {
+                self.f.unwrap() == (other.n.unwrap() as f64)
+            } else {
+                self.f.unwrap() == other.f.unwrap()
+            }
+        }
+    }
+}
+
+impl Eq for UniversalNumber {
+
 }
 
 impl fmt::Display for UniversalNumber {
