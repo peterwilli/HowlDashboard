@@ -68,7 +68,14 @@ impl Server {
         tokio::spawn(async move {
            loop {
                let result = incoming.next().await;
-               let msg = result.unwrap().unwrap();
+               if result.is_none() {
+                   continue;
+               }
+               let result = result.unwrap();
+               if result.is_err() {
+                   continue;
+               }
+               let msg = result.unwrap();
                let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
                    Ok(msg) => msg,
                    Err(e) => {

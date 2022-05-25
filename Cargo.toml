@@ -1,5 +1,5 @@
 [package]
-name = "server"
+name = "howl-network"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,7 +10,6 @@ crate-type = ["cdylib", "rlib"]
 futures-util = "0.3.21"
 tokio = { version = "1.18.2", features = ["full"], optional = true }
 tokio-tungstenite = { version = "0.17.1", optional = true }
-tokio-tungstenite-wasm = { version = "0.1.0", optional = true }
 log = "0.4.17"
 serde_json = "1.0.81"
 serde = { version = "1.0.137", features = ["derive"] }
@@ -20,9 +19,21 @@ bimap = { version = "0.6.2", features = ["serde"] }
 url = "2.0.0"
 chrono = "0.4.19"
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+tokio = { version = "1.18.2", features = ["sync", "rt"] }
+ws_stream_wasm = "0.7.3"
+wasm-bindgen = { version = "0.2.63", features = ["serde-serialize"] }
+wasm-bindgen-futures = "0.4.28"
+console_error_panic_hook = "0.1.7"
+console_log = { version = "0.2.0", features = ["color"] }
+futures = "0.3.21"
+pharos = "0.5.3"
+js-sys = "0.3.57"
+
 [features]
 default = ["tokio", "tokio-tungstenite"]
-wasm = ["tokio-tungstenite-wasm"]
+wasm = []
+debugging = []
 
 [dev-dependencies]
 env_logger = "0.9.0"
