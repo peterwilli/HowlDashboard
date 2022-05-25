@@ -3,10 +3,11 @@ use chrono::prelude::*;
 use log::debug;
 use serde_json::Value;
 use tokio::sync::{broadcast, mpsc};
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::Sender;
 use crate::structs::universal_number::UniversalNumber;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Serialize, Deserialize, Clone, Default, Debug, Eq, PartialEq)]
 pub struct DataStoreEvent {
     pub categorical_number_data: Option<HashMap<String, UniversalNumber>>
 }

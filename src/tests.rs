@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
     use async_std::task;
@@ -10,20 +11,69 @@ mod tests {
     use test_log::test;
     use tokio::sync::mpsc::channel;
     use url::Url;
+    use serde::{Deserialize, Serialize};
+    use serde_json::Value;
     use crate::client::Client;
     use crate::structs::{DataStore, InitCommandType, UniversalNumber};
 
+    #[test]
+    fn test_un_serde() {
+        #[derive(Serialize, Deserialize)]
+        struct TestStruct {
+            number: UniversalNumber
+        }
+        fn test_shot(num: &str) {
+            let un = UniversalNumber::from_str(num).unwrap();
+            let test_struct = TestStruct {
+                number: un
+            };
+            let json = serde_json::to_string(&test_struct).unwrap();
+            debug!("json: {}", json);
+            let test_struct_de: TestStruct = serde_json::from_str(&json).unwrap();
+            assert_eq!(test_struct_de.number, un);
+        }
+        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(80085129);
+        for _ in 0..100 {
+            let test_num: i32 = rng.gen();
+            test_shot(&format!("{}", test_num));
+            let test_num: f32 = rng.gen();
+            test_shot(&format!("{}", test_num));
+        }
+    }
+
     #[test(tokio::test)]
-    async fn spawn_server() {
+    async fn server_test() {
         let host = "127.0.0.1:8000";
         tokio::spawn(async {
             let server = Server::new();
             server.start(host).await;
         });
+        let server_url = Url::from_str(format!("ws://{}", host).as_str()).unwrap();
         tokio::time::sleep(Duration::from_secs(2)).await;
-        let mut client = Client::new(InitCommandType::Provider);
-        client.connect(Url::from_str(format!("ws://{}", host).as_str()).unwrap()).await;
+
+        let (on_data_tx, mut on_data_rx) = channel(16);
+        let mut client_sub = Client::as_subscriber(on_data_tx);
+        tokio::spawn(async move {
+            loop {
+                let event = on_data_rx.recv().await.unwrap();
+                debug!("data store event: {}", serde_json::to_string(&event).unwrap());
+            }
+        });
+        client_sub.connect(server_url.clone()).await;
+
+        let mut client_pro = Client::as_provider();
+        client_pro.connect(server_url.clone()).await;
         tokio::time::sleep(Duration::from_secs(2)).await;
+
+        let data = r#"
+        {
+            "category": "test_%",
+            "number": 203
+        }
+        "#;
+        debug!("Sharing data: {}", data);
+        client_pro.share_data(serde_json::from_str(data).unwrap()).await;
+        tokio::time::sleep(Duration::from_secs(10)).await;
     }
 
     #[test]

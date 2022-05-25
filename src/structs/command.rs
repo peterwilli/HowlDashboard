@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use strum::Display;
-use crate::structs::SocketError;
+use crate::structs::{DataStoreEvent, SocketError};
 
 #[derive(Serialize, Deserialize, Display, Debug, PartialEq)]
 pub enum CommandType {
     Init,
     Error,
-    Data
+    Data,
+    DataStoreEvent
 }
 
 #[derive(Serialize, Deserialize, Display, Debug, PartialEq, Copy, Clone)]
@@ -17,12 +19,24 @@ pub enum InitCommandType {
     Subscriber
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+impl Default for CommandType {
+    fn default() -> CommandType {
+        CommandType::Init
+    }
+}
+
+impl Default for InitCommandType {
+    fn default() -> InitCommandType {
+        InitCommandType::Provider
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct InitCommand {
     pub r#type: InitCommandType
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
 pub struct Command {
     pub r#type: CommandType,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -30,16 +44,17 @@ pub struct Command {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<SocketError>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub data: Option<String>
+    pub event: Option<DataStoreEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub data: Option<Value>
 }
 
 impl Command {
     pub fn new_error(error: SocketError) -> Self {
         return Self {
             r#type: CommandType::Error,
-            init_command: None,
             error: Some(error),
-            data: None
+            ..Default::default()
         };
     }
 
@@ -47,17 +62,23 @@ impl Command {
         return Self {
             r#type: CommandType::Init,
             init_command: Some(init_command),
-            error: None,
-            data: None
+            ..Default::default()
         };
     }
 
-    pub fn new_data(init_command: InitCommand) -> Self {
+    pub fn new_data(data: Value) -> Self {
         return Self {
             r#type: CommandType::Data,
-            init_command: Some(init_command),
-            error: None,
-            data: None
+            data: Some(data),
+            ..Default::default()
+        };
+    }
+
+    pub fn new_event(event: DataStoreEvent) -> Self {
+        return Self {
+            r#type: CommandType::DataStoreEvent,
+            event: Some(event),
+            ..Default::default()
         };
     }
 }

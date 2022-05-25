@@ -4,31 +4,42 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc};
 use futures_channel::mpsc::{unbounded, UnboundedSender};
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use log::{debug, error};
 use serde_json::Value;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
-use crate::structs::{Command, CommandType, SocketError, SocketErrorType};
+use crate::structs::{Command, CommandType, DataStore, DataStoreEvent, SocketError, SocketErrorType};
 use crate::structs::CommandType::Init;
 use crate::structs::InitCommandType::{Provider, Subscriber};
 
 type PeerMap = Arc<RwLock<HashMap<String, Sender<Command>>>>;
 
 pub struct Server {
-
 }
 
 impl Server {
     pub fn new() -> Self {
         Self {
-
         }
     }
 
-    async fn handle_connection(provider_peers: PeerMap, subscriber_peers: PeerMap, raw_stream: TcpStream, addr: SocketAddr) {
+    fn start_event_listener(mut rx: Receiver<DataStoreEvent>, subscriber_peers: PeerMap) {
+        tokio::spawn(async move {
+           loop {
+               let event = rx.recv().await.unwrap();
+               let peers = subscriber_peers.read().await;
+               for peer_tx in peers.values() {
+                   debug!("writing to peer: {:?}", event);
+                   peer_tx.send(Command::new_event(event.clone())).await.unwrap();
+               }
+           }
+        });
+    }
+
+    async fn handle_connection(provider_peers: PeerMap, subscriber_peers: PeerMap, data_store: Arc<RwLock<DataStore>>, raw_stream: TcpStream, addr: SocketAddr) {
         debug!("Incoming TCP connection from: {}", addr);
 
         let ws_stream = tokio_tungstenite::accept_async(raw_stream)
@@ -36,89 +47,104 @@ impl Server {
             .expect("Error during the websocket handshake occurred");
         debug!("WebSocket connection established: {}", addr);
 
-        let (outgoing, mut incoming) = ws_stream.split();
-        let (tx, mut rx) = mpsc::channel(16);
+        let (mut outgoing, mut incoming) = ws_stream.split();
+        let (tx_in, mut rx_in) = mpsc::channel(16);
+        let (tx_out, mut rx_out) = mpsc::channel::<Command>(16);
 
-        let tx_clone = tx.clone();
         tokio::spawn(async move {
-            let result = incoming.next().await;
-            // let command = result.unwrap().unwrap();
-            let msg = result.unwrap().unwrap();
-            let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
-                Ok(msg) => msg,
-                Err(e) => {
-                    debug!("Cant parse '{}' to JSON!", msg.to_text().unwrap());
-                    let error = Command::new_error(SocketError {
-                        error_type: SocketErrorType::ParseError,
-                        message: e.to_string(),
-                    });
-                    error
+            loop {
+                let msg = rx_out.recv().await;
+                if msg.is_none() {
+                    debug!("Loop ended");
+                    break;
                 }
-            };
-            tx_clone.send(command).await.unwrap();
+                let msg = msg.unwrap();
+                let json = serde_json::to_string(&msg).unwrap();
+                outgoing.send(Message::from(json)).await.unwrap();
+            }
+        });
+
+        let tx_clone = tx_in.clone();
+        tokio::spawn(async move {
+           loop {
+               let result = incoming.next().await;
+               let msg = result.unwrap().unwrap();
+               let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
+                   Ok(msg) => msg,
+                   Err(e) => {
+                       debug!("Cant parse '{}' to JSON!", msg.to_text().unwrap());
+                       let error = Command::new_error(SocketError {
+                           error_type: SocketErrorType::ParseError,
+                           message: e.to_string(),
+                       });
+                       error
+                   }
+               };
+               tx_clone.send(command).await.unwrap();
+           }
         });
 
         // Check if provider or subscriber
-        let command = rx.recv().await.unwrap();
+        let command = rx_in.recv().await.unwrap();
         if command.r#type == Init {
             let init_command = command.init_command.unwrap();
             match init_command.r#type {
                 Subscriber => {
-                    subscriber_peers.write().await.insert(addr.to_string(), tx.clone());
-                    Self::provider_loop(tx, rx);
+                    subscriber_peers.write().await.insert(addr.to_string(), tx_out.clone());
+                    Self::subscriber_loop(tx_in, rx_in, tx_out).await;
                 }
                 Provider => {
-                    provider_peers.write().await.insert(addr.to_string(), tx.clone());
-                    Self::subscriber_loop(tx, rx);
+                    provider_peers.write().await.insert(addr.to_string(), tx_out.clone());
+                    Self::provider_loop(addr.to_string(), tx_in, rx_in, data_store).await;
                 }
             }
         }
     }
 
-    fn subscriber_loop(tx: Sender<Command>, mut rx: Receiver<Command>) {
-        tokio::spawn(async move {
-            loop {
-                let command = rx.recv().await;
-                if command.is_none() {
-                    debug!("Loop ended");
-                    break;
-                }
-                let command = command.unwrap();
+    async fn subscriber_loop(tx_in: Sender<Command>, mut rx_in: Receiver<Command>, tx_out: Sender<Command>) {
+        loop {
+            let command = rx_in.recv().await;
+            if command.is_none() {
+                debug!("Loop ended");
+                break;
             }
-        });
+
+        }
     }
 
-    fn provider_loop(tx: Sender<Command>, mut rx: Receiver<Command>) {
-        tokio::spawn(async move {
-            loop {
-                let command = rx.recv().await;
-                if command.is_none() {
-                    debug!("Loop ended");
-                    break;
+    async fn provider_loop(addr: String, tx: Sender<Command>, mut rx: Receiver<Command>, data_store: Arc<RwLock<DataStore>>) {
+        loop {
+            let command = rx.recv().await;
+            if command.is_none() {
+                debug!("Loop ended");
+                break;
+            }
+            let command = command.unwrap();
+            match command.r#type {
+                CommandType::Data => {
+                    data_store.write().await.add_entry(addr.clone(), command.data.as_ref().unwrap()).await;
                 }
-                let command = command.unwrap();
-                match command.r#type {
-                    CommandType::Data => {
-                        let json: Value = serde_json::from_str(command.data.as_ref().unwrap()).unwrap();
-                        
-                    }
-                    _ => {
-                        error!("Unknown command: {:#?}", command);
-                    }
+                _ => {
+                    error!("Unknown command: {:#?}", command);
                 }
             }
-        });
+        }
     }
 
     pub async fn start(&self, addr: &str) {
+        let (event_tx, mut event_rx) = channel(16);
+        let data_store = Arc::new(RwLock::new(DataStore::new(event_tx)));
+
         let provider_peers = PeerMap::new(RwLock::new(HashMap::new()));
         let subscriber_peers = PeerMap::new(RwLock::new(HashMap::new()));
+
+        Self::start_event_listener(event_rx, subscriber_peers.clone());
         let try_socket = TcpListener::bind(&addr).await;
         let listener = try_socket.expect("Failed to bind");
         debug!("Listening on: {}", addr);
         // Let's spawn the handling of each connection in a separate task.
         while let Ok((stream, addr)) = listener.accept().await {
-            tokio::spawn(Self::handle_connection(provider_peers.clone(), subscriber_peers.clone(), stream, addr));
+            tokio::spawn(Self::handle_connection(provider_peers.clone(), subscriber_peers.clone(), data_store.clone(), stream, addr));
         }
     }
 }

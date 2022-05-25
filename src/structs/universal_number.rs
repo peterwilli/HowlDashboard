@@ -1,10 +1,50 @@
 use std::fmt;
 use std::ops::{Add, AddAssign};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Clone, Default, Copy, Debug)]
 pub struct UniversalNumber {
     pub(crate) n: Option<i64>,
     pub(crate) f: Option<f64>
+}
+
+impl Serialize for UniversalNumber {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+    {
+        if self.n.is_some() {
+            serializer.serialize_str(&format!("{}", self.n.unwrap()))
+        }
+        else {
+            serializer.serialize_str(&format!("{}", self.f.unwrap()))
+        }
+    }
+}
+
+use serde::de::{self, EnumAccess, Error, MapAccess, SeqAccess, Visitor};
+
+struct UNVisitor;
+
+impl<'de> Visitor<'de> for UNVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string containing an integer between -2^31 and 2^31 or a float of the same range.")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E> where E: Error {
+        return Ok(v.to_string());
+    }
+}
+
+impl<'de> Deserialize<'de> for UniversalNumber {
+    fn deserialize<D>(deserializer: D) -> Result<UniversalNumber, D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        Ok(UniversalNumber::from_str(&deserializer.deserialize_string(UNVisitor).unwrap()).unwrap())
+    }
 }
 
 impl UniversalNumber {
