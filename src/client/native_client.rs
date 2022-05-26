@@ -66,7 +66,6 @@ impl Client {
                         let command: Command = serde_json::from_str(data.into_text().as_ref().unwrap()).unwrap();
                         match command.r#type {
                             CommandType::DataStoreEvent => {
-                                debug!("Data! {:#?}", command);
                                 on_data_tx.send(command.event.unwrap()).await.unwrap();
                             }
                             _ => {

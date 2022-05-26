@@ -42,14 +42,6 @@ mod tests {
     }
 
     #[test(tokio::test)]
-    async fn temp_test() {
-        // TODO: remove after binary exists
-        let host = "127.0.0.1:8000";
-        let server = Server::new();
-        server.start(host).await;
-    }
-
-    #[test(tokio::test)]
     async fn server_test() {
         let host = "127.0.0.1:8000";
         tokio::spawn(async {
@@ -82,6 +74,10 @@ mod tests {
         debug!("Sharing data: {}", data);
         client_pro.share_data(serde_json::from_str(data).unwrap()).await;
         tokio::time::sleep(Duration::from_secs(10)).await;
+        // TODO: remove after binary exists
+        loop {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        }
     }
 
     #[test]

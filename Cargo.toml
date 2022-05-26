@@ -29,6 +29,8 @@ console_log = { version = "0.2.0", features = ["color"] }
 futures = "0.3.21"
 pharos = "0.5.3"
 js-sys = "0.3.57"
+getrandom = { version = "0.2.6", features = ["js"] }
+rand = "0.8.5"
 
 [features]
 default = ["tokio", "tokio-tungstenite"]

@@ -69,13 +69,16 @@ impl Server {
            loop {
                let result = incoming.next().await;
                if result.is_none() {
-                   continue;
+                   debug!("incoming loop ended");
+                   break;
                }
                let result = result.unwrap();
                if result.is_err() {
-                   continue;
+                   debug!("incoming loop ended: {:?}", result.err().unwrap());
+                   break;
                }
                let msg = result.unwrap();
+               debug!("Get message: {}", msg.to_text().unwrap());
                let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
                    Ok(msg) => msg,
                    Err(e) => {
@@ -98,7 +101,7 @@ impl Server {
             match init_command.r#type {
                 Subscriber => {
                     subscriber_peers.write().await.insert(addr.to_string(), tx_out.clone());
-                    Self::subscriber_loop(tx_in, rx_in, tx_out).await;
+                    Self::subscriber_loop(tx_in, rx_in, tx_out, data_store).await;
                 }
                 Provider => {
                     provider_peers.write().await.insert(addr.to_string(), tx_out.clone());
@@ -108,7 +111,11 @@ impl Server {
         }
     }
 
-    async fn subscriber_loop(tx_in: Sender<Command>, mut rx_in: Receiver<Command>, tx_out: Sender<Command>) {
+    async fn subscriber_loop(tx_in: Sender<Command>, mut rx_in: Receiver<Command>, tx_out: Sender<Command>, data_store_lock: Arc<RwLock<DataStore>>) {
+        // Start by sending all data we have
+        let data = data_store_lock.read().await.get_all_data();
+        tx_out.send(Command::new_initial_data(data)).await.unwrap();
+
         loop {
             let command = rx_in.recv().await;
             if command.is_none() {

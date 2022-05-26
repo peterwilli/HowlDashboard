@@ -9,6 +9,7 @@ use crate::structs::universal_number::UniversalNumber;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, Eq, PartialEq)]
 pub struct DataStoreEvent {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub categorical_number_data: Option<HashMap<String, UniversalNumber>>
 }
 
@@ -31,6 +32,17 @@ impl DataStore {
             categorical_number_data: HashMap::new(),
             categorical_line_date_chart: HashMap::new()
         };
+    }
+
+    pub fn get_all_data(&self) -> DataStoreEvent {
+        let categorical_data = self.get_categorical_number_data();
+        let mut event = DataStoreEvent {
+            ..Default::default()
+        };
+        if !categorical_data.is_empty() {
+            event.categorical_number_data = Some(categorical_data);
+        }
+        return event;
     }
 
     pub fn get_categorical_number_data(&self) -> HashMap<String, UniversalNumber> {

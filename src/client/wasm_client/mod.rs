@@ -1,23 +1,28 @@
 mod utils;
 
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use crate::structs::InitCommandType;
+use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
 use ws_stream_wasm::*;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 use pharos::{Observable, ObserveConfig};
 use wasm_bindgen_futures::spawn_local;
-use futures_util::{SinkExt, StreamExt};
-use log::{debug, warn};
-use js_sys::{Promise, Uint8Array};
-use tokio::sync::RwLock;
+use futures_util::{AsyncReadExt, SinkExt, StreamExt};
+use log::{debug, error, warn};
+use js_sys::{Promise, Function, Uint8Array};
+use rand::distributions::Alphanumeric;
+use rand::Rng;
+use serde_json::Value;
+use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc::Sender;
 
 #[wasm_bindgen]
 #[derive(Default)]
 pub struct Client {
     r#type: InitCommandType,
-    stream: Arc<RwLock<Option<WsStream>>>
+    data_listeners: Arc<RwLock<HashMap<String, Function>>>
 }
 
 #[wasm_bindgen]
@@ -42,34 +47,87 @@ impl Client {
     }
 
     #[wasm_bindgen(js_name="listenForData")]
-    pub fn listen_for_data(&self) -> Result<Promise, JsValue> {
-        let stream = self.stream.clone();
-        let promise: Promise = future_to_promise(async move {
-            loop {
-                let msg = stream.write().await.as_mut().unwrap().next().await;
-                if msg.is_some() {
-                    let msg = msg.unwrap();
-                    debug!("json: {:?}", msg);
-                }
-                else {
-                    warn!("listen_for_data loop closed");
-                    return Ok(JsValue::from_str("Closed"));
-                }
-            }
+    pub fn listen_for_data(&self, on_data: &Function) -> JsValue {
+        let on_data = on_data.clone();
+        let token: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+        let token_clone = token.clone();
+        let data_listeners = self.data_listeners.clone();
+        spawn_local(async move {
+            data_listeners.write().await.insert(token_clone, on_data);
         });
-        Ok(promise)
+        return JsValue::from_str(&token);
     }
 
     #[wasm_bindgen]
     pub fn connect(&mut self, addr: String) {
-        let stream = self.stream.clone();
-        let program = async move
-        {
-            let (mut ws, mut wsio) = WsMeta::connect( addr, None ).await
+        let r#type = self.r#type.clone();
+        let data_listeners = self.data_listeners.clone();
 
-                .expect_throw( "assume the connection succeeds" );
-            *stream.write().await = Some(wsio);
-        };
-        spawn_local( program );
+        spawn_local(async move {
+            let (mut ws, mut wsio) = WsMeta::connect(addr, None).await
+                .expect_throw("assume the connection succeeds");
+            let (mut ws_write, mut ws_read) = wsio.split();
+            let (tx_out, mut rx_out) = mpsc::channel::<Command>(16);
+            let (tx_in, mut rx_in) = mpsc::channel::<Command>(16);
+
+            spawn_local(async move {
+                loop {
+                    let command = rx_out.recv().await;
+                    if command.is_none() {
+                        debug!("rx_out loop ended!");
+                        break;
+                    }
+                    let command = command.unwrap();
+                    let json = serde_json::to_string(&command).unwrap();
+                    debug!(">> {}", json);
+                    ws_write.send(WsMessage::Text(json)).await.unwrap();
+                }
+            });
+
+            spawn_local(async move {
+                loop {
+                    let msg = ws_read.next().await;
+                    if msg.is_none() {
+                        debug!("ws_read loop ended!");
+                        break;
+                    }
+                    let msg = msg.unwrap();
+                    match msg {
+                        WsMessage::Text(ref str) => {
+                            debug!("<< {}", str);
+                            let command: Command = serde_json::from_str(str).unwrap();
+                            let this = JsValue::null();
+                            if command.r#type == CommandType::InitialData {
+                                for js_callback in data_listeners.read().await.values() {
+                                    js_callback.call1(
+                                        &this,
+                                        JsValue::from_serde(command.initial_data.as_ref().unwrap()).as_ref().unwrap()
+                                    ).unwrap();
+                                }
+                            }
+                            else if command.r#type == CommandType::DataStoreEvent {
+                                for js_callback in data_listeners.read().await.values() {
+                                    js_callback.call1(
+                                        &this,
+                                        JsValue::from_serde(command.event.as_ref().unwrap()).as_ref().unwrap()
+                                    ).unwrap();
+                                }
+                            }
+                        },
+                        _ => {
+                            warn!("Unknown WsMessage format")
+                        }
+                    }
+                }
+            });
+
+            tx_out.send(Command::new_init(InitCommand {
+                r#type
+            })).await.unwrap();
+        });
     }
 }

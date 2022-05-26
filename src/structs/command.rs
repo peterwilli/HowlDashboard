@@ -3,13 +3,14 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use strum::Display;
-use crate::structs::{DataStoreEvent, SocketError};
+use crate::structs::{DataStoreEvent, SocketError, UniversalNumber};
 
 #[derive(Serialize, Deserialize, Display, Debug, PartialEq)]
 pub enum CommandType {
     Init,
     Error,
     Data,
+    InitialData,
     DataStoreEvent
 }
 
@@ -46,6 +47,8 @@ pub struct Command {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub event: Option<DataStoreEvent>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub initial_data: Option<DataStoreEvent>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<Value>
 }
 
@@ -70,6 +73,14 @@ impl Command {
         return Self {
             r#type: CommandType::Data,
             data: Some(data),
+            ..Default::default()
+        };
+    }
+
+    pub fn new_initial_data(data: DataStoreEvent) -> Self {
+        return Self {
+            r#type: CommandType::InitialData,
+            initial_data: Some(data),
             ..Default::default()
         };
     }
