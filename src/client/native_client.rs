@@ -1,12 +1,8 @@
-use std::collections::HashMap;
 use futures_util::{SinkExt, StreamExt};
-
 use log::{debug, warn};
 use serde_json::Value;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
-use tokio_tungstenite::tungstenite::connect;
-
 use url::Url;
 
 use crate::structs::{Command, CommandType, DataStoreEvent, InitCommand, InitCommandType};

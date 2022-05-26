@@ -1,6 +1,8 @@
 use std::fmt;
 use std::ops::{Add, AddAssign};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::{EnumAccess, Error, MapAccess, SeqAccess, Visitor};
 
 #[derive(Clone, Default, Copy, Debug)]
 pub struct UniversalNumber {
@@ -21,8 +23,6 @@ impl Serialize for UniversalNumber {
         }
     }
 }
-
-use serde::de::{self, EnumAccess, Error, MapAccess, SeqAccess, Visitor};
 
 struct UNVisitor;
 

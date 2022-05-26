@@ -1,9 +1,8 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use strum::Display;
-use crate::structs::{DataStoreEvent, SocketError, UniversalNumber};
+
+use crate::structs::{DataStoreEvent, SocketError};
 
 #[derive(Serialize, Deserialize, Display, Debug, PartialEq)]
 pub enum CommandType {

@@ -1,20 +1,19 @@
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
+
     use async_std::task;
     use log::debug;
-    use rand::{random, Rng, SeedableRng};
-    use rand_chacha::ChaCha8Rng;
-    use crate::server::Server;
+    use rand::{Rng, SeedableRng};
+    use serde::{Deserialize, Serialize};
     use test_log::test;
     use tokio::sync::mpsc::channel;
     use url::Url;
-    use serde::{Deserialize, Serialize};
-    use serde_json::Value;
+
     use crate::client::Client;
-    use crate::structs::{DataStore, InitCommandType, UniversalNumber};
+    use crate::server::Server;
+    use crate::structs::{DataStore, UniversalNumber};
 
     #[test]
     fn test_un_serde() {

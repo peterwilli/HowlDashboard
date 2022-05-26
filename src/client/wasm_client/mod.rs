@@ -1,22 +1,21 @@
-mod utils;
-
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
-use ws_stream_wasm::*;
-use wasm_bindgen::prelude::*;
-use wasm_bindgen_futures::future_to_promise;
-use pharos::{Observable, ObserveConfig};
-use wasm_bindgen_futures::spawn_local;
+
 use futures_util::{AsyncReadExt, SinkExt, StreamExt};
-use log::{debug, error, warn};
-use js_sys::{Promise, Function, Uint8Array};
+use js_sys::Function;
+use log::{debug, warn};
+use pharos::Observable;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
-use serde_json::Value;
 use tokio::sync::{mpsc, RwLock};
-use tokio::sync::mpsc::Sender;
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::spawn_local;
+use ws_stream_wasm::*;
+
+use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
+
+mod utils;
 
 #[wasm_bindgen]
 #[derive(Default)]

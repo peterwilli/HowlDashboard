@@ -1,19 +1,19 @@
-mod socket_utils;
-
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc};
-use futures_channel::mpsc::{unbounded, UnboundedSender};
+use std::sync::Arc;
+
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error};
-use serde_json::Value;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
+
 use crate::structs::{Command, CommandType, DataStore, DataStoreEvent, SocketError, SocketErrorType};
 use crate::structs::CommandType::Init;
 use crate::structs::InitCommandType::{Provider, Subscriber};
+
+mod socket_utils;
 
 type PeerMap = Arc<RwLock<HashMap<String, Sender<Command>>>>;
 
