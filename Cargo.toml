@@ -5,6 +5,7 @@ edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+name = "howl_network"
 
 [dependencies]
 futures-util = "0.3.21"
@@ -31,6 +32,9 @@ pharos = "0.5.3"
 js-sys = "0.3.57"
 getrandom = { version = "0.2.6", features = ["js"] }
 rand = "0.8.5"
+
+[package.metadata.maturin]
+python-source = "python"
 
 [features]
 default = ["tokio", "tokio-tungstenite"]

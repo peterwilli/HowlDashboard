@@ -12,16 +12,15 @@ use tokio::sync::{mpsc, RwLock};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use ws_stream_wasm::*;
+use crate::client::base_client::BaseClient;
 
 use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
 
 mod utils;
 
 #[wasm_bindgen]
-#[derive(Default)]
 pub struct Client {
-    r#type: InitCommandType,
-    data_listeners: Arc<RwLock<HashMap<String, Function>>>
+    base_client: Arc<RwLock<BaseClient>>
 }
 
 #[wasm_bindgen]
@@ -31,9 +30,9 @@ impl Client {
         #[cfg(feature = "debugging")]
         utils::init_logging();
         utils::set_panic_hook();
+        let base_client = BaseClient::new(InitCommandType::Subscriber);
         Client {
-            r#type: InitCommandType::Subscriber,
-            ..Default::default()
+            base_client: Arc::new(RwLock::new(base_client))
         }
     }
 
@@ -63,7 +62,7 @@ impl Client {
 
     #[wasm_bindgen]
     pub fn connect(&mut self, addr: String) {
-        let r#type = self.r#type.clone();
+        let base_client_lock = self.base_client.clone();
         let data_listeners = self.data_listeners.clone();
 
         spawn_local(async move {
@@ -87,6 +86,11 @@ impl Client {
                 }
             });
 
+            let (tx_command_in, rx_command_in) = mpsc::channel(16);
+            spawn_local(async move {
+                base_client_lock.write().await.command_runner_loop(rx_command_in);
+            });
+
             spawn_local(async move {
                 loop {
                     let msg = ws_read.next().await;
@@ -99,23 +103,7 @@ impl Client {
                         WsMessage::Text(ref str) => {
                             debug!("<< {}", str);
                             let command: Command = serde_json::from_str(str).unwrap();
-                            let this = JsValue::null();
-                            if command.r#type == CommandType::InitialData {
-                                for js_callback in data_listeners.read().await.values() {
-                                    js_callback.call1(
-                                        &this,
-                                        JsValue::from_serde(command.initial_data.as_ref().unwrap()).as_ref().unwrap()
-                                    ).unwrap();
-                                }
-                            }
-                            else if command.r#type == CommandType::DataStoreEvent {
-                                for js_callback in data_listeners.read().await.values() {
-                                    js_callback.call1(
-                                        &this,
-                                        JsValue::from_serde(command.event.as_ref().unwrap()).as_ref().unwrap()
-                                    ).unwrap();
-                                }
-                            }
+                            tx_command_in.send(command).await.unwrap();
                         },
                         _ => {
                             warn!("Unknown WsMessage format")
@@ -123,10 +111,6 @@ impl Client {
                     }
                 }
             });
-
-            tx_out.send(Command::new_init(InitCommand {
-                r#type
-            })).await.unwrap();
         });
     }
 }

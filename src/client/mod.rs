@@ -7,3 +7,4 @@ pub use wasm_client::Client;
 mod native_client;
 #[cfg(feature = "wasm")]
 mod wasm_client;
+mod base_client;
