@@ -76,7 +76,7 @@ impl Client {
                 .expect_throw("assume the connection succeeds");
             let (mut ws_write, mut ws_read) = wsio.split();
             let (tx_out, mut rx_out) = mpsc::channel::<Command>(16);
-            let (tx_in, mut rx_in) = mpsc::channel::<Command>(16);
+            base_client_lock.write().await.set_command_out_tx(tx_out);
 
             spawn_local(async move {
                 loop {
@@ -105,7 +105,7 @@ impl Client {
                         WsMessage::Text(ref str) => {
                             debug!("<< {}", str);
                             let command: Command = serde_json::from_str(str).unwrap();
-                            base_client_lock_clone.read().await.execute_command(command);
+                            base_client_lock_clone.read().await.execute_command(command).await;
                         }
                         _ => {
                             warn!("Unknown WsMessage format")
@@ -152,6 +152,8 @@ impl Client {
                     }
                 }
             });
+
+            base_client_lock.read().await.after_connection().await;
         });
     }
 }

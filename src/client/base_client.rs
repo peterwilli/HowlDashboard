@@ -25,8 +25,11 @@ impl BaseClient {
             .send(Command::new_data(data)).await.unwrap();
     }
 
-    pub async fn set_command_out_tx(&mut self, tx: Sender<Command>) {
+    pub fn set_command_out_tx(&mut self, tx: Sender<Command>) {
         self.command_out_tx = Some(tx);
+    }
+
+    pub async fn after_connection(&self) {
         self.command_out_tx.as_ref().unwrap().send(Command::new_init(InitCommand {
             r#type: self.r#type
         })).await.unwrap();
