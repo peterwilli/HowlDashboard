@@ -40,23 +40,15 @@ impl BaseClient {
         self.initial_data_tx = Some(tx);
     }
 
-    pub async fn command_runner_loop(&self, mut rx_in: Receiver<Command>) {
-        loop {
-            let command = rx_in.recv().await;
-            if command.is_none() {
-                debug!("Command loop ended!");
-                break;
+    pub async fn execute_command(&self, command: Command) {
+        if command.r#type == CommandType::InitialData {
+            if self.initial_data_tx.is_some() {
+                self.initial_data_tx.as_ref().unwrap().send(command.initial_data.unwrap()).await.unwrap();
             }
-            let command = command.unwrap();
-            if command.r#type == CommandType::InitialData {
-                if self.initial_data_tx.is_some() {
-                    self.initial_data_tx.as_ref().unwrap().send(command.initial_data.unwrap()).await.unwrap();
-                }
-            }
-            else if command.r#type == CommandType::DataStoreEvent {
-                if self.new_data_tx.is_some() {
-                    self.new_data_tx.as_ref().unwrap().send(command.event.unwrap()).await.unwrap();
-                }
+        }
+        else if command.r#type == CommandType::DataStoreEvent {
+            if self.new_data_tx.is_some() {
+                self.new_data_tx.as_ref().unwrap().send(command.event.unwrap()).await.unwrap();
             }
         }
     }

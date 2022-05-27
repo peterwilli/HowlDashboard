@@ -20,31 +20,37 @@ mod utils;
 
 #[wasm_bindgen]
 pub struct Client {
-    base_client: Arc<RwLock<BaseClient>>
+    base_client: Arc<RwLock<BaseClient>>,
+    data_listeners: Arc<RwLock<HashMap<String, Function>>>,
 }
 
 #[wasm_bindgen]
 impl Client {
-    #[wasm_bindgen(js_name="subscriber")]
+    #[wasm_bindgen(js_name = "subscriber")]
     pub fn as_subscriber() -> Self {
         #[cfg(feature = "debugging")]
         utils::init_logging();
         utils::set_panic_hook();
         let base_client = BaseClient::new(InitCommandType::Subscriber);
         Client {
-            base_client: Arc::new(RwLock::new(base_client))
+            base_client: Arc::new(RwLock::new(base_client)),
+            data_listeners: Arc::new(RwLock::new(HashMap::new()))
         }
     }
 
-    #[wasm_bindgen(js_name="provider")]
+    #[wasm_bindgen(js_name = "provider")]
     pub fn as_provider() -> Self {
+        #[cfg(feature = "debugging")]
+        utils::init_logging();
+        utils::set_panic_hook();
+        let base_client = BaseClient::new(InitCommandType::Provider);
         Client {
-            r#type: InitCommandType::Provider,
-            ..Default::default()
+            base_client: Arc::new(RwLock::new(base_client)),
+            data_listeners: Arc::new(RwLock::new(HashMap::new()))
         }
     }
 
-    #[wasm_bindgen(js_name="listenForData")]
+    #[wasm_bindgen(js_name = "listenForData")]
     pub fn listen_for_data(&self, on_data: &Function) -> JsValue {
         let on_data = on_data.clone();
         let token: String = rand::thread_rng()
@@ -86,11 +92,7 @@ impl Client {
                 }
             });
 
-            let (tx_command_in, rx_command_in) = mpsc::channel(16);
-            spawn_local(async move {
-                base_client_lock.write().await.command_runner_loop(rx_command_in);
-            });
-
+            let base_client_lock_clone = base_client_lock.clone();
             spawn_local(async move {
                 loop {
                     let msg = ws_read.next().await;
@@ -103,11 +105,50 @@ impl Client {
                         WsMessage::Text(ref str) => {
                             debug!("<< {}", str);
                             let command: Command = serde_json::from_str(str).unwrap();
-                            tx_command_in.send(command).await.unwrap();
-                        },
+                            base_client_lock_clone.read().await.execute_command(command);
+                        }
                         _ => {
                             warn!("Unknown WsMessage format")
                         }
+                    }
+                }
+            });
+
+            let (tx_initial_data, mut rx_initial_data) = mpsc::channel(16);
+            base_client_lock.write().await.set_on_initial_data(tx_initial_data);
+            let data_listeners_clone = data_listeners.clone();
+            spawn_local(async move {
+                let this = JsValue::null();
+                loop {
+                    let initial_data = rx_initial_data.recv().await;
+                    if initial_data.is_none() {
+                        debug!("initial_data loop ended!");
+                    }
+                    let initial_data = initial_data.unwrap();
+                    for js_callback in data_listeners_clone.read().await.values() {
+                        js_callback.call1(
+                            &this,
+                            JsValue::from_serde(&initial_data).as_ref().unwrap(),
+                        ).unwrap();
+                    }
+                }
+            });
+
+            let (tx_new_data, mut rx_new_data) = mpsc::channel(16);
+            base_client_lock.write().await.set_on_new_data(tx_new_data);
+            spawn_local(async move {
+                let this = JsValue::null();
+                loop {
+                    let new_data = rx_new_data.recv().await;
+                    if new_data.is_none() {
+                        debug!("new_data loop ended!");
+                    }
+                    let initial_data = new_data.unwrap();
+                    for js_callback in data_listeners.read().await.values() {
+                        js_callback.call1(
+                            &this,
+                            JsValue::from_serde(&initial_data).as_ref().unwrap(),
+                        ).unwrap();
                     }
                 }
             });
