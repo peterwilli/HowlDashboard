@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use strum::Display;
+use strum::{Display, EnumString};
 
 use crate::structs::{DataStoreEvent, SocketError};
 
@@ -13,7 +13,7 @@ pub enum CommandType {
     DataStoreEvent
 }
 
-#[derive(Serialize, Deserialize, Display, Debug, PartialEq, Copy, Clone)]
+#[derive(Serialize, Deserialize, Display, Debug, PartialEq, Copy, Clone, EnumString)]
 pub enum InitCommandType {
     Provider,
     Subscriber

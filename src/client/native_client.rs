@@ -1,49 +1,48 @@
+use std::sync::Arc;
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, warn};
 use serde_json::Value;
 use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::{mpsc, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use url::Url;
+use crate::client::base_client::BaseClient;
 
 use crate::structs::{Command, CommandType, DataStoreEvent, InitCommand, InitCommandType};
 
 pub struct Client {
-    command_tx: Option<Sender<Command>>,
-    r#type: InitCommandType,
-    on_data_tx: Option<Sender<DataStoreEvent>>
+    base_client: Arc<RwLock<BaseClient>>
 }
 
 impl Client {
-    pub fn as_provider() -> Self {
+    pub fn new(r#type: InitCommandType) -> Self {
+        let base_client = BaseClient::new(r#type);
         Self {
-            command_tx: None,
-            r#type: InitCommandType::Provider,
-            on_data_tx: None
-        }
-    }
-
-    pub fn as_subscriber(on_data_tx: Sender<DataStoreEvent>) -> Self {
-        Self {
-            command_tx: None,
-            r#type: InitCommandType::Subscriber,
-            on_data_tx: Some(on_data_tx)
+            base_client: Arc::new(RwLock::new(base_client))
         }
     }
 
     pub async fn share_data(&self, data: Value) {
-        self.command_tx.as_ref().unwrap().send(Command::new_data(data)).await.unwrap();
+        self.base_client.read().await.share_data(data).await;
+    }
+
+    pub async fn set_on_new_data(&self, tx: Sender<DataStoreEvent>) {
+        self.base_client.write().await.set_on_new_data(tx);
+    }
+
+    pub async fn set_on_initial_data(&self, tx: Sender<DataStoreEvent>) {
+        self.base_client.write().await.set_on_new_data(tx);
     }
 
     pub async fn connect(&mut self, addr: Url) {
-        let (tx, mut rx) = channel(2);
         let (ws_stream, _) = connect_async(addr).await.expect("Failed to connect");
         let (mut write, mut read) = ws_stream.split();
-
-        self.command_tx = Some(tx);
+        let (tx_out, mut rx_out) = mpsc::channel::<Command>(16);
+        self.base_client.write().await.set_command_out_tx(tx_out);
 
         tokio::spawn(async move {
             loop {
-                let msg = rx.recv().await;
+                let msg = rx_out.recv().await;
                 if msg.is_none() {
                     debug!("Howl client command sender loop ended");
                     break;
@@ -53,32 +52,28 @@ impl Client {
             }
         });
 
-        if self.r#type == InitCommandType::Subscriber {
-            let on_data_tx = self.on_data_tx.as_ref().unwrap().clone();
-            tokio::spawn(async move {
-                loop {
-                    let data = read.next().await.unwrap().unwrap();
-                    if data.is_text() {
-                        let command: Command = serde_json::from_str(data.into_text().as_ref().unwrap()).unwrap();
-                        match command.r#type {
-                            CommandType::DataStoreEvent => {
-                                on_data_tx.send(command.event.unwrap()).await.unwrap();
-                            }
-                            _ => {
-                                warn!("Unknown command type: {}", command.r#type);
-                            }
+        let base_client_lock = self.base_client.clone();
+        tokio::spawn(async move {
+            loop {
+                let data = read.next().await.unwrap().unwrap();
+                if data.is_text() {
+                    let command: Command = match serde_json::from_str(data.into_text().as_ref().unwrap()) {
+                        Ok(command) => {
+                            command
+                        },
+                        Err(e) => {
+                            warn!("text is not a valid command JSON! Error: {}", e);
+                            continue;
                         }
-                    }
-                    else {
-                        warn!("Data is not text!")
-                    }
+                    };
+                    base_client_lock.read().await.execute_command(command).await;
                 }
-            });
-        }
+                else {
+                    warn!("Data is not text!")
+                }
+            }
+        });
 
-        // To connect ourselves
-        self.command_tx.as_ref().unwrap().send(Command::new_init(InitCommand {
-            r#type: self.r#type
-        })).await.unwrap();
+        self.base_client.read().await.after_connection().await;
     }
 }

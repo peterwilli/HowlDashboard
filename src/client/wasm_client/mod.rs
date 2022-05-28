@@ -32,7 +32,7 @@ impl Client {
         utils::init_logging();
         utils::set_panic_hook();
         let base_client = BaseClient::new(InitCommandType::Subscriber);
-        Client {
+        Self {
             base_client: Arc::new(RwLock::new(base_client)),
             data_listeners: Arc::new(RwLock::new(HashMap::new()))
         }

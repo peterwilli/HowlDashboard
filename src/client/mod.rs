@@ -7,4 +7,6 @@ pub use wasm_client::Client;
 mod native_client;
 #[cfg(feature = "wasm")]
 mod wasm_client;
+// #[cfg(feature = "pyo3")]
+mod python_client;
 mod base_client;
