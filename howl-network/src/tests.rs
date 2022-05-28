@@ -13,7 +13,7 @@ mod tests {
 
     use crate::client::Client;
     use crate::server::Server;
-    use crate::structs::{DataStore, UniversalNumber};
+    use crate::structs::{DataStore, InitCommandType, UniversalNumber};
 
     #[test]
     fn test_un_serde() {
@@ -50,17 +50,26 @@ mod tests {
         let server_url = Url::from_str(format!("ws://{}", host).as_str()).unwrap();
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let (on_data_tx, mut on_data_rx) = channel(16);
-        let mut client_sub = Client::as_subscriber(on_data_tx);
+        let (on_initial_data_tx, mut on_initial_data_rx) = channel(16);
+        let (on_new_data_tx, mut on_new_data_rx) = channel(16);
+        let mut client_sub = Client::new(InitCommandType::Subscriber);
+        client_sub.set_on_initial_data(on_initial_data_tx).await;
+        client_sub.set_on_new_data(on_new_data_tx).await;
         tokio::spawn(async move {
             loop {
-                let event = on_data_rx.recv().await.unwrap();
-                debug!("data store event: {}", serde_json::to_string(&event).unwrap());
+                let event = on_initial_data_rx.recv().await.unwrap();
+                debug!("on_initial_data_rx event: {}", serde_json::to_string(&event).unwrap());
+            }
+        });
+        tokio::spawn(async move {
+            loop {
+                let event = on_new_data_rx.recv().await.unwrap();
+                debug!("on_new_data_rx event: {}", serde_json::to_string(&event).unwrap());
             }
         });
         client_sub.connect(server_url.clone()).await;
 
-        let mut client_pro = Client::as_provider();
+        let mut client_pro = Client::new(InitCommandType::Provider);
         client_pro.connect(server_url.clone()).await;
         tokio::time::sleep(Duration::from_secs(2)).await;
 
