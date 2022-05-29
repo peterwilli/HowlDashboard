@@ -16,7 +16,7 @@
     "webpack-dev-server": "^3.11.2"
   },
   "dependencies": {
-    "howl-network": "file:../howl-network/pkg"
+    "libhowl": "file:../libhowl/pkg"
   },
   "scripts": {
     "build": "cross-env NODE_ENV=production webpack",
