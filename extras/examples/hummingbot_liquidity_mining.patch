@@ -1,0 +1,44 @@
+8a9
+> import libhowl
+9a11,13
+> async def init_howl(client: libhowl.Client, howl_server: str):
+>     await client.connect(howl_server)
+>     
+85c89,94
+<         self._hb_app_notification = hb_app_notification
+---
+>         self._hb_app_notification = hb_app_notificationself._howl_client = None
+>         self._howl_client = libhowl.Client("Provider")
+>         loop = asyncio.get_running_loop()
+>         # Where "ws://localhost:8081" is your Howl server
+>         loop.create_task(init_howl(self._howl_client, "ws://localhost:8081"))
+>         self.logger().info(f"Howl provider initialized...")
+104a114,139
+>     def howl_data_tick(self):
+>         async def send_howl_data(client: libhowl.Client, data: dict):
+>             await client.share_data(json.dumps(data))
+> 
+>         loop = asyncio.get_running_loop()
+>         portfolio = Counter()
+>         token_value = Counter()
+>         
+>         for token, balance in self._token_balances.items():
+>             portfolio[token] += balance
+>             if token == self._token:
+>                 token_value[token] += balance
+>             else:
+>                 token_value[token] += self.get_token_price(token) * balance
+>         howl_data = {
+>             "title": "Portfolio (across bots)",
+>             "data": {}
+>         }
+>         for k, v in portfolio.items():
+>             howl_data['data'][k] = [
+>                 { "value": f"{v}", "suffix": k }
+>             ]
+>             if k in token_value:
+>                 howl_data['data'][k].append({ "value": f"{token_value[k]}", "suffix": '$' })
+>         loop.create_task(send_howl_data(self._howl_client, howl_data))
+> 
+128a164
+>         self.howl_data_tick()
