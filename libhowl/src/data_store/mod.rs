@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 use crate::data_store::data_types::categorical_number_data::{CategoricalNumberData, CategoricalNumberDataEntry};
+use crate::data_store::data_types::chart::Chart;
 use crate::data_store::data_types::data_block_key::DataBlockKey;
+use crate::data_store::data_types::data_type::DataType;
 use crate::structs::UniversalNumber;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, Eq, PartialEq)]
@@ -107,28 +109,12 @@ impl DataStore {
         let mut changed_event = DataStoreEvent {
             ..Default::default()
         };
-        //TODO: add detectors with error handling
-        let title = json["title"].as_str().unwrap();
-        for (category, values) in json["data"].as_object().unwrap() {
-            let key = DataBlockKey {
-                category: category.to_string(),
-                title: title.to_string(),
-                from: from.clone()
-            };
-            let first_value = values.as_array().unwrap().get(0).unwrap();
-            let new_unum = UniversalNumber::from_str(&Self::read_json_number_as_string(&first_value["value"])).unwrap();
-            let mut converted_values = HashMap::new();
-            for value in values.as_array().unwrap().iter().skip(1) {
-                let new_unum = UniversalNumber::from_str(&Self::read_json_number_as_string(&value["value"])).unwrap();
-                let suffix = value["suffix"].as_str().unwrap().to_string();
-                converted_values.insert(suffix, new_unum);
-            }
-            self.categorical_number_data.add_number(key, CategoricalNumberDataEntry {
-                number: new_unum,
-                converted_values,
-                suffix: Some(first_value["suffix"].as_str().unwrap().to_string())
-            });
-            changed_event.categorical_number_data = Some(self.get_categorical_number_data());
+        let data_types: Vec<Box<dyn DataType + Send>> = vec![
+            Box::new(Chart::new())
+        ];
+        let mut current_object: HashMap<String, Value> = HashMap::new();
+        for data_type in data_types.iter() {
+            data_type.process_data(json, &mut current_object);
         }
         if changed_event.contains_data() {
             self.event_tx.send(changed_event).await.unwrap();

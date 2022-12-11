@@ -100,6 +100,7 @@ impl Client {
                         debug!("ws_read loop ended!");
                         break;
                     }
+                    spawn_local()
                     let msg = msg.unwrap();
                     match msg {
                         WsMessage::Text(ref str) => {
