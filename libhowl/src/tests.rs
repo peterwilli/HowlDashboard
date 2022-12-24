@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
 
@@ -7,20 +8,73 @@ mod tests {
     use log::debug;
     use rand::{Rng, SeedableRng};
     use serde::{Deserialize, Serialize};
+    use serde_json::json;
     use test_log::test;
     use tokio::sync::mpsc::channel;
     use url::Url;
 
     use crate::client::Client;
-    use crate::data_store::{DataStore, DataStoreEvent};
+    use crate::data_store::{Chart, DataStore, DataStoreEvent, DataType};
     use crate::server::Server;
     use crate::structs::{InitCommandType, UniversalNumber};
+
+    #[test]
+    fn test_chart() {
+        let mut test_state = HashMap::new();
+        let chart = Chart::new();
+        chart.process_data(&json!({
+            "title": "Test",
+            "data": [{
+                "timestamp": 2932438,
+                "value": 1
+            }]
+        }), &mut test_state);
+        assert_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+          "test": {
+            "title": "Test",
+            "values": [
+              [
+                1
+              ]
+            ],
+            "x_points": [
+              2932438
+            ],
+            "x_type": "DateTime"
+          }
+        })).unwrap());
+        debug!("test_state: {}", serde_json::to_string_pretty(&test_state).unwrap());
+
+        chart.process_data(&json!({
+            "title": "Test",
+            "data": [{
+                "timestamp": 2932439,
+                "value": 2
+            }]
+        }), &mut test_state);
+        assert_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+          "test": {
+            "title": "Test",
+            "values": [
+              [
+                1,
+                2
+              ]
+            ],
+            "x_points": [
+              2932438,
+              2932439
+            ],
+            "x_type": "DateTime"
+          }
+        })).unwrap());
+    }
 
     #[test]
     fn test_un_serde() {
         #[derive(Serialize, Deserialize)]
         struct TestStruct {
-            number: UniversalNumber
+            number: UniversalNumber,
         }
         fn test_shot(num: &str) {
             let un = UniversalNumber::from_str(num).unwrap();

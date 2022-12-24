@@ -1,4 +1,5 @@
 mod data_types;
+mod utils;
 
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -9,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc::Sender;
 use crate::data_store::data_types::categorical_number_data::{CategoricalNumberData, CategoricalNumberDataEntry};
-use crate::data_store::data_types::chart::Chart;
+pub use crate::data_store::data_types::chart::Chart;
 use crate::data_store::data_types::data_block_key::DataBlockKey;
-use crate::data_store::data_types::data_type::DataType;
+pub use crate::data_store::data_types::data_type::DataType;
 use crate::structs::UniversalNumber;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug, Eq, PartialEq)]
