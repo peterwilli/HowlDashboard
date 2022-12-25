@@ -1,13 +1,13 @@
-use log::debug;
 use serde_json::Value;
-use tokio::sync::mpsc::{Receiver, Sender};
-use crate::structs::{Command,  InitCommand, InitCommandType};
+use tokio::sync::mpsc::Sender;
+
+use crate::structs::{Command, InitCommand, InitCommandType};
 
 #[derive(Default)]
 pub struct BaseClient {
     r#type: InitCommandType,
-    new_data_tx: Option<Sender<DataStoreEvent>>,
-    initial_data_tx: Option<Sender<DataStoreEvent>>,
+    new_data_tx: Option<Sender<Value>>,
+    initial_data_tx: Option<Sender<Value>>,
     command_out_tx: Option<Sender<Command>>
 }
 
@@ -22,7 +22,7 @@ impl BaseClient {
     pub async fn share_data(&self, data: Value) {
         self.command_out_tx.as_ref()
             .expect("set_command_out_tx needs to be called before share_data!")
-            .send(Command::new_data(data)).await.unwrap();
+            .send(Command::Data(data)).await.unwrap();
     }
 
     pub fn set_command_out_tx(&mut self, tx: Sender<Command>) {
@@ -30,33 +30,33 @@ impl BaseClient {
     }
 
     pub async fn after_connection(&self) {
-        self.command_out_tx.as_ref().unwrap().send(Command::new_init(InitCommand {
+        let command = Command::Init(InitCommand {
             r#type: self.r#type
-        })).await.unwrap();
+        });
+        self.command_out_tx.as_ref().unwrap().send(command).await.unwrap();
     }
 
     pub async fn disconnect(&self) {
-        self.command_out_tx.as_ref().unwrap().send(Command::new_close_connection()).await.unwrap();
+        self.command_out_tx.as_ref().unwrap().send(Command::CloseConnection).await.unwrap();
     }
 
-    pub fn set_on_new_data(&mut self, tx: Sender<DataStoreEvent>) {
+    pub fn set_on_new_data(&mut self, tx: Sender<Value>) {
         self.new_data_tx = Some(tx);
     }
 
-    pub fn set_on_initial_data(&mut self, tx: Sender<DataStoreEvent>) {
+    pub fn set_on_initial_data(&mut self, tx: Sender<Value>) {
         self.initial_data_tx = Some(tx);
     }
 
     pub async fn execute_command(&self, command: Command) {
-        // TODO: Convert to new Enum-based command system
-        if command.r#type == CommandType::InitialData {
+        if let Command::InitialState(data) = command {
             if self.initial_data_tx.is_some() {
-                self.initial_data_tx.as_ref().unwrap().send(command.initial_data.unwrap()).await.unwrap();
+                self.initial_data_tx.as_ref().unwrap().send(data).await.unwrap();
             }
         }
-        else if command.r#type == CommandType::DataStoreEvent {
+        else if let Command::Data(data) = command {
             if self.new_data_tx.is_some() {
-                self.new_data_tx.as_ref().unwrap().send(command.event.unwrap()).await.unwrap();
+                self.new_data_tx.as_ref().unwrap().send(data).await.unwrap();
             }
         }
     }

@@ -1,14 +1,14 @@
-mod chart_object;
-
 use std::collections::HashMap;
 use std::str::FromStr;
-use chrono::{DateTime, NaiveDateTime, Utc};
-use log::debug;
+
 use serde_json::Value;
+
 use crate::data_store::data_types::chart::chart_object::{ChartAxisXType, ChartObject};
 use crate::data_store::data_types::data_type::DataType;
-use crate::data_store::utils::{filter_recursively, filter_title_objects};
+use crate::data_store::utils::filter_title_objects;
 use crate::utils::{Slug, TimestampExt};
+
+mod chart_object;
 
 pub struct Chart {
 

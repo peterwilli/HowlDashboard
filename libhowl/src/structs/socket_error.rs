@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum SocketErrorType {
     ParseError,
     ParametersNotFound,
@@ -9,7 +9,7 @@ pub enum SocketErrorType {
     WrongInitType
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct SocketError {
     pub error_type: SocketErrorType,
     pub message: String

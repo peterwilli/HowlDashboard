@@ -1,13 +1,3 @@
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::RwLock;
-use pyo3::prelude::*;
-use pyo3::types::PyString;
-use url::Url;
-use crate::structs::InitCommandType;
-use crate::client::native_client::Client as NativeClient;
-
 #[pyclass]
 struct Client {
     native_client: Arc<RwLock<NativeClient>>

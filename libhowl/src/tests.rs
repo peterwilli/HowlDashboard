@@ -3,21 +3,18 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
-    use assert_json_diff::{assert_json_eq, assert_json_include};
 
-    use async_std::task;
+    use assert_json_diff::assert_json_eq;
     use log::debug;
-    use rand::{Rng, SeedableRng};
-    use serde::{Deserialize, Serialize};
     use serde_json::json;
     use test_log::test;
     use tokio::sync::mpsc::channel;
     use url::Url;
 
     use crate::client::Client;
-    use crate::data_store::{Chart, DataStore, DataType};
+    use crate::data_store::{Chart, DataType};
     use crate::server::Server;
-    use crate::structs::{InitCommandType, UniversalNumber};
+    use crate::structs::InitCommandType;
 
     #[test]
     fn test_chart() {
@@ -51,7 +48,7 @@ mod tests {
                 "value": 2
             }]
         }), &mut test_state);
-        assert_json_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+        assert_json_eq!(test_state, json!({
           "test": {
             "title": "Test",
             "values": [
@@ -66,7 +63,7 @@ mod tests {
             ],
             "x_type": "DateTime"
           }
-        })).unwrap());
+        }));
         chart.process_data(&json!({
             "title": "Test2",
             "data": [{
@@ -75,7 +72,7 @@ mod tests {
             }]
         }), &mut test_state);
         debug!("test_state: {}", serde_json::to_string_pretty(&test_state).unwrap());
-        assert_json_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+        assert_json_eq!(test_state, json!({
           "test": {
             "title": "Test",
             "values": [
@@ -102,32 +99,7 @@ mod tests {
             ],
             "x_type": "DateTime"
           }
-        })).unwrap());
-    }
-
-    #[test]
-    fn test_un_serde() {
-        #[derive(Serialize, Deserialize)]
-        struct TestStruct {
-            number: UniversalNumber,
-        }
-        fn test_shot(num: &str) {
-            let un = UniversalNumber::from_str(num).unwrap();
-            let test_struct = TestStruct {
-                number: un
-            };
-            let json = serde_json::to_string(&test_struct).unwrap();
-            debug!("json: {}", json);
-            let test_struct_de: TestStruct = serde_json::from_str(&json).unwrap();
-            assert_eq!(test_struct_de.number, un);
-        }
-        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(80085129);
-        for _ in 0..100 {
-            let test_num: i32 = rng.gen();
-            test_shot(&format!("{}", test_num));
-            let test_num: f32 = rng.gen();
-            test_shot(&format!("{}", test_num));
-        }
+        }));
     }
 
     #[test(tokio::test)]
@@ -176,96 +148,14 @@ mod tests {
         client_sub.disconnect().await;
         debug!("client_sub disconnected");
         tokio::time::sleep(Duration::from_secs(2)).await;
+        let data = serde_json::to_string(&json!({
+            "title": "Test2",
+            "data": [{
+                "timestamp": 2932438,
+                "value": 2
+            }]
+        })).unwrap();
         client_pro.share_data(serde_json::from_str(&data).unwrap()).await;
-    }
-
-    #[test]
-    fn universal_number_test() {
-        let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(80085128);
-        for _ in 0..100 {
-            let test_num: i32 = rng.gen();
-            debug!("Testing with {}", test_num);
-            let test_unum = UniversalNumber::from_str(format!("{}", test_num).as_str()).unwrap();
-            assert_eq!(test_unum.n.unwrap(), test_num as i64);
-
-            // Adding another int
-            let test_num2: i32 = rng.gen();
-            let added_unum = test_unum + UniversalNumber::from_str(format!("{}", test_num2).as_str()).unwrap();
-            debug!("Testing added unum: {} + {} = {}", test_num, test_num2, added_unum);
-            assert_eq!(added_unum.n.unwrap(), ((test_num as i64) + (test_num2 as i64)) as i64);
-
-            // Adding a float...
-            let test_float: f32 = rng.gen();
-            let float_unum = UniversalNumber::from_str(format!("{}", test_float).as_str()).unwrap();
-            assert_eq!(float_unum.f.unwrap() as f32, test_float);
-            let added_unum = test_unum + float_unum;
-            debug!("Testing added unum: {} + {} = {}", test_num, float_unum, added_unum);
-            let epsilon = 1e-6;
-            assert!((added_unum.f.unwrap() - ((test_num as f64) + (test_float as f64)) as f64) < epsilon);
-        }
-    }
-
-    #[test(tokio::test)]
-    async fn datastore_test() {
-        let (event_tx, mut event_rx) = channel(16);
-        let mut data_store = DataStore::new(event_tx);
-        tokio::spawn(async move {
-            let event = event_rx.recv().await.unwrap();
-            println!("Event: {:#?}", event);
-        });
-        let data = r#"
-        {
-            "title": "Portfolio (across bots)",
-            "data": {
-                "Bitcoin": [
-                    { "value": "120", "suffix": "btc" },
-                    { "value": "12000", "suffix": "$" }
-                ]
-            }
-        }
-        "#;
-        data_store.add_entry("1".to_string(), serde_json::from_str(data).as_ref().unwrap()).await;
-        task::sleep(Duration::from_secs(2)).await;
-        let data = r#"
-        {
-            "title": "Portfolio (across bots)",
-            "data": {
-                "Ethereum": [
-                    { "value": "29", "suffix": "eth" },
-                    { "value": "2934", "suffix": "$" }
-                ]
-            }
-        }
-        "#;
-        data_store.add_entry("1".to_string(), serde_json::from_str(data).as_ref().unwrap()).await;
-        task::sleep(Duration::from_secs(2)).await;
-        debug!("Testing adding");
-        let data = r#"
-        {
-            "title": "Portfolio (across bots)",
-            "data": {
-                "Ethereum": [
-                    { "value": "12", "suffix": "eth" },
-                    { "value": "20", "suffix": "$" }
-                ]
-            }
-        }
-        "#;
-        data_store.add_entry("2".to_string(), serde_json::from_str(data).as_ref().unwrap()).await;
-        task::sleep(Duration::from_secs(2)).await;
-        debug!("Replace 12 from former node");
-        let data = r#"
-        {
-            "title": "Portfolio (across bots)",
-            "data": {
-                "Ethereum": [
-                    { "value": "13", "suffix": "eth" },
-                    { "value": "21", "suffix": "$" }
-                ]
-            }
-        }
-        "#;
-        data_store.add_entry("1".to_string(), serde_json::from_str(data).as_ref().unwrap()).await;
-        task::sleep(Duration::from_secs(2)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }

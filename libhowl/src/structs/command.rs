@@ -3,7 +3,6 @@ use serde_json::Value;
 use strum::{Display, EnumString};
 
 use crate::structs::SocketError;
-use crate::types::StateHashmap;
 
 #[derive(Serialize, Deserialize, Display, Debug, PartialEq, Copy, Clone, EnumString)]
 pub enum InitCommandType {
@@ -17,17 +16,17 @@ impl Default for InitCommandType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Default)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Default, Clone)]
 pub struct InitCommand {
     pub r#type: InitCommandType
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum Command {
     Init(InitCommand),
     Error(SocketError),
-    Event(StateHashmap),
-    InitialState(StateHashmap),
+    Event(Value),
+    InitialState(Value),
     Data(Value),
     CloseConnection
 }

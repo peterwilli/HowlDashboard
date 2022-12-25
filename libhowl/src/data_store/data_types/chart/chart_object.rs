@@ -1,6 +1,8 @@
 use std::error::Error;
-use serde_json::Value;
+
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
 use crate::data_store::data_types::chart::chart_object::ChartAxisXType::Number;
 
 #[derive(Serialize, Deserialize)]

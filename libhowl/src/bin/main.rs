@@ -1,4 +1,5 @@
 use clap::Parser;
+
 use libhowl::Server;
 
 /// Howl server

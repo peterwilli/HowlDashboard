@@ -1,13 +1,14 @@
 use std::sync::Arc;
+
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, warn};
 use serde_json::Value;
-use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::{mpsc, RwLock};
+use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use url::Url;
-use crate::client::base_client::BaseClient;
 
+use crate::client::base_client::BaseClient;
 use crate::structs::{Command, InitCommandType};
 use crate::structs::Command::CloseConnection;
 
@@ -27,11 +28,11 @@ impl Client {
         self.base_client.read().await.share_data(data).await;
     }
 
-    pub async fn set_on_new_data(&self, tx: Sender<DataStoreEvent>) {
+    pub async fn set_on_new_data(&self, tx: Sender<Value>) {
         self.base_client.write().await.set_on_new_data(tx);
     }
 
-    pub async fn set_on_initial_data(&self, tx: Sender<DataStoreEvent>) {
+    pub async fn set_on_initial_data(&self, tx: Sender<Value>) {
         self.base_client.write().await.set_on_initial_data(tx);
     }
 

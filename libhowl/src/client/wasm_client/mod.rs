@@ -1,20 +1,15 @@
-use std::collections::HashMap;
 use std::str::FromStr;
-use std::sync::Arc;
 
 use futures_util::{AsyncReadExt, SinkExt, StreamExt};
-use js_sys::Function;
-use log::{debug, warn};
-use pharos::Observable;
-use rand::distributions::Alphanumeric;
 use rand::Rng;
-use tokio::sync::{mpsc, RwLock};
+
+use js_sys::Function;
+use pharos::Observable;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use ws_stream_wasm::*;
-use crate::client::base_client::BaseClient;
 
-use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
+use crate::structs::CommandType;
 
 mod utils;
 

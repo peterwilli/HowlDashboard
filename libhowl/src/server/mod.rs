@@ -3,16 +3,15 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use futures_util::{SinkExt, StreamExt};
-use log::{debug, error, warn};
+use log::{debug, warn};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
+
 use crate::data_store::DataStore;
 use crate::structs::Command;
-
 use crate::structs::InitCommandType::{Provider, Subscriber};
-use crate::types::StateHashmap;
 
 mod socket_utils;
 
@@ -27,14 +26,14 @@ impl Server {
         }
     }
 
-    fn start_event_listener(mut rx: Receiver<StateHashmap>, subscriber_peers: PeerMap) {
+    fn start_event_listener(mut rx: Receiver<Command>, subscriber_peers: PeerMap) {
         tokio::spawn(async move {
            loop {
                let event = rx.recv().await.unwrap();
                let peers = subscriber_peers.read().await;
                for peer_tx in peers.values() {
                    debug!("writing to peer: {:?}", event);
-                   match peer_tx.send(Command::new_event(event.clone())).await {
+                   match peer_tx.send(event.clone()).await {
                        Err(e) => {
                            warn!("peer_tx send error (ignored)! Could be because a closed client still is in subscriber_peers! {}", e);
                        },
@@ -116,8 +115,7 @@ impl Server {
 
         // Check if provider or subscriber
         let command = rx_in.recv().await.unwrap();
-        if command.r#type == Init {
-            let init_command = command.init_command.unwrap();
+        if let Command::Init(init_command) = command {
             match init_command.r#type {
                 Subscriber => {
                     subscriber_peers.write().await.insert(addr.to_string(), tx_out.clone());
@@ -133,8 +131,8 @@ impl Server {
 
     async fn subscriber_loop(tx_in: Sender<Command>, mut rx_in: Receiver<Command>, tx_out: Sender<Command>, data_store_lock: Arc<RwLock<DataStore>>) {
         // Start by sending all data we have
-        let data = data_store_lock.read().await.get_all_data();
-        tx_out.send(Command::new_initial_data(data)).await.unwrap();
+        let data = data_store_lock.read().await.current_state.clone();
+        tx_out.send(Command::InitialState(data)).await.unwrap();
 
         loop {
             let command = rx_in.recv().await;
