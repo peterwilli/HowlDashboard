@@ -8,11 +8,11 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, RwLock};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
-use crate::data_store::{DataStore, DataStoreEvent};
+use crate::data_store::DataStore;
+use crate::structs::Command;
 
-use crate::structs::{Command, CommandType, SocketError, SocketErrorType};
-use crate::structs::CommandType::Init;
 use crate::structs::InitCommandType::{Provider, Subscriber};
+use crate::types::StateHashmap;
 
 mod socket_utils;
 
@@ -27,7 +27,7 @@ impl Server {
         }
     }
 
-    fn start_event_listener(mut rx: Receiver<DataStoreEvent>, subscriber_peers: PeerMap) {
+    fn start_event_listener(mut rx: Receiver<StateHashmap>, subscriber_peers: PeerMap) {
         tokio::spawn(async move {
            loop {
                let event = rx.recv().await.unwrap();
@@ -99,18 +99,18 @@ impl Server {
                }
                let msg = result.unwrap();
                debug!("Get message: {}", msg.to_text().unwrap());
-               let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
-                   Ok(msg) => msg,
-                   Err(e) => {
-                       debug!("Cant parse '{}' to JSON!", msg.to_text().unwrap());
-                       let error = Command::new_error(SocketError {
-                           error_type: SocketErrorType::ParseError,
-                           message: e.to_string(),
-                       });
-                       error
-                   }
-               };
-               tx_clone.send(command).await.unwrap();
+               // let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
+               //     Ok(msg) => msg,
+               //     Err(e) => {
+               //         debug!("Cant parse '{}' to JSON!", msg.to_text().unwrap());
+               //         let error = Command::new_error(SocketError {
+               //             error_type: SocketErrorType::ParseError,
+               //             message: e.to_string(),
+               //         });
+               //         error
+               //     }
+               // };
+               // tx_clone.send(command).await.unwrap();
            }
         });
 
@@ -154,13 +154,8 @@ impl Server {
                 break;
             }
             let command = command.unwrap();
-            match command.r#type {
-                CommandType::Data => {
-                    data_store.write().await.add_entry(addr.clone(), command.data.as_ref().unwrap()).await;
-                }
-                _ => {
-                    error!("Unknown command: {:#?}", command);
-                }
+            if let Command::Data(data) = command {
+                data_store.write().await.add_entry(addr.clone(), &data).await;
             }
         }
     }

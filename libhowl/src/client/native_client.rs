@@ -7,9 +7,9 @@ use tokio::sync::{mpsc, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use url::Url;
 use crate::client::base_client::BaseClient;
-use crate::data_store::DataStoreEvent;
 
-use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
+use crate::structs::{Command, InitCommandType};
+use crate::structs::Command::CloseConnection;
 
 pub struct Client {
     base_client: Arc<RwLock<BaseClient>>
@@ -53,7 +53,7 @@ impl Client {
                     break;
                 }
                 let msg = msg.unwrap();
-                if msg.r#type == CommandType::CloseConnection {
+                if msg == CloseConnection {
                     // Special case: close connection and all channels (don't send to sever)
                     write.close().await.unwrap();
                     break;

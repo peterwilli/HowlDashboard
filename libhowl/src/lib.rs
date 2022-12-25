@@ -9,4 +9,5 @@ mod tests;
 mod structs;
 mod client;
 mod data_store;
+mod types;
 

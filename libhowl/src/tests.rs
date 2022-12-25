@@ -15,7 +15,7 @@ mod tests {
     use url::Url;
 
     use crate::client::Client;
-    use crate::data_store::{Chart, DataStore, DataStoreEvent, DataType};
+    use crate::data_store::{Chart, DataStore, DataType};
     use crate::server::Server;
     use crate::structs::{InitCommandType, UniversalNumber};
 
@@ -210,23 +210,8 @@ mod tests {
         let (event_tx, mut event_rx) = channel(16);
         let mut data_store = DataStore::new(event_tx);
         tokio::spawn(async move {
-            fn test_number_from_event(event: &DataStoreEvent, title: &str, number_str: &str, name: &str) {
-                assert_eq!(&event.categorical_number_data.as_ref().unwrap().get(title).unwrap().get(name).unwrap().number, &UniversalNumber::from_str(number_str).unwrap());
-            }
-
             let event = event_rx.recv().await.unwrap();
             println!("Event: {:#?}", event);
-            test_number_from_event(&event, "Portfolio (across bots)", "120", "Bitcoin");
-            let event = event_rx.recv().await.unwrap();
-            println!("Event: {:#?}", event);
-            test_number_from_event(&event, "Portfolio (across bots)", "120", "Bitcoin");
-            test_number_from_event(&event, "Portfolio (across bots)", "29", "Ethereum");
-            let event = event_rx.recv().await.unwrap();
-            println!("Event: {:#?}", event);
-            test_number_from_event(&event, "Portfolio (across bots)", "41", "Ethereum");
-            let event = event_rx.recv().await.unwrap();
-            println!("Event: {:#?}", event);
-            test_number_from_event(&event, "Portfolio (across bots)", "25", "Ethereum");
         });
         let data = r#"
         {

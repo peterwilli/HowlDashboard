@@ -1,8 +1,7 @@
 use log::debug;
 use serde_json::Value;
 use tokio::sync::mpsc::{Receiver, Sender};
-use crate::data_store::DataStoreEvent;
-use crate::structs::{Command, CommandType, InitCommand, InitCommandType};
+use crate::structs::{Command,  InitCommand, InitCommandType};
 
 #[derive(Default)]
 pub struct BaseClient {
@@ -49,6 +48,7 @@ impl BaseClient {
     }
 
     pub async fn execute_command(&self, command: Command) {
+        // TODO: Convert to new Enum-based command system
         if command.r#type == CommandType::InitialData {
             if self.initial_data_tx.is_some() {
                 self.initial_data_tx.as_ref().unwrap().send(command.initial_data.unwrap()).await.unwrap();
