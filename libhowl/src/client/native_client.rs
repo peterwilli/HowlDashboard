@@ -32,7 +32,7 @@ impl Client {
     }
 
     pub async fn set_on_initial_data(&self, tx: Sender<DataStoreEvent>) {
-        self.base_client.write().await.set_on_new_data(tx);
+        self.base_client.write().await.set_on_initial_data(tx);
     }
 
     pub async fn disconnect(&self) {

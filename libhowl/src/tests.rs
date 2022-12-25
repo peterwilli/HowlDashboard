@@ -3,6 +3,7 @@ mod tests {
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::time::Duration;
+    use assert_json_diff::{assert_json_eq, assert_json_include};
 
     use async_std::task;
     use log::debug;
@@ -29,7 +30,7 @@ mod tests {
                 "value": 1
             }]
         }), &mut test_state);
-        assert_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+        assert_json_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
           "test": {
             "title": "Test",
             "values": [
@@ -43,8 +44,6 @@ mod tests {
             "x_type": "DateTime"
           }
         })).unwrap());
-        debug!("test_state: {}", serde_json::to_string_pretty(&test_state).unwrap());
-
         chart.process_data(&json!({
             "title": "Test",
             "data": [{
@@ -52,7 +51,7 @@ mod tests {
                 "value": 2
             }]
         }), &mut test_state);
-        assert_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+        assert_json_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
           "test": {
             "title": "Test",
             "values": [
@@ -64,6 +63,42 @@ mod tests {
             "x_points": [
               2932438,
               2932439
+            ],
+            "x_type": "DateTime"
+          }
+        })).unwrap());
+        chart.process_data(&json!({
+            "title": "Test2",
+            "data": [{
+                "timestamp": 28320932,
+                "value": 3
+            }]
+        }), &mut test_state);
+        debug!("test_state: {}", serde_json::to_string_pretty(&test_state).unwrap());
+        assert_json_eq!(serde_json::to_string(&test_state).unwrap(), serde_json::to_string(&json!({
+          "test": {
+            "title": "Test",
+            "values": [
+              [
+                1,
+                2
+              ]
+            ],
+            "x_points": [
+              2932438,
+              2932439
+            ],
+            "x_type": "DateTime"
+          },
+          "test2": {
+            "title": "Test2",
+            "values": [
+              [
+                3
+              ]
+            ],
+            "x_points": [
+              28320932
             ],
             "x_type": "DateTime"
           }
@@ -123,33 +158,25 @@ mod tests {
             }
         });
         client_sub.connect(server_url.clone()).await;
-
         let mut client_pro = Client::new(InitCommandType::Provider);
         client_pro.connect(server_url.clone()).await;
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let data = r#"
-        {
-            "title": "Portfolio (across bots)",
-            "data": {
-                "FRONT": [{
-                    "value": "172.3033304100000000",
-                    "suffix": "FRONT"
-                }, {
-                    "value": "44.204419416685500000000000",
-                    "suffix": "$"
-                }]
-            }
-        }
-        "#;
+        let data = serde_json::to_string(&json!({
+            "title": "Test",
+            "data": [{
+                "timestamp": 2932438,
+                "value": 1
+            }]
+        })).unwrap();
         debug!("Sharing data: {}", data);
-        client_pro.share_data(serde_json::from_str(data).unwrap()).await;
+        client_pro.share_data(serde_json::from_str(&data).unwrap()).await;
         debug!("testing disconnect and sending data (is client cleaned up from the server?)");
         tokio::time::sleep(Duration::from_secs(2)).await;
         client_sub.disconnect().await;
         debug!("client_sub disconnected");
         tokio::time::sleep(Duration::from_secs(2)).await;
-        client_pro.share_data(serde_json::from_str(data).unwrap()).await;
+        client_pro.share_data(serde_json::from_str(&data).unwrap()).await;
     }
 
     #[test]
