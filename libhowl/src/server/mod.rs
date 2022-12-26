@@ -10,7 +10,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::Message;
 
 use crate::data_store::DataStore;
-use crate::structs::Command;
+use crate::structs::{Command, SocketError, SocketErrorType};
 use crate::structs::InitCommandType::{Provider, Subscriber};
 
 mod socket_utils;
@@ -98,18 +98,18 @@ impl Server {
                }
                let msg = result.unwrap();
                debug!("Get message: {}", msg.to_text().unwrap());
-               // let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
-               //     Ok(msg) => msg,
-               //     Err(e) => {
-               //         debug!("Cant parse '{}' to JSON!", msg.to_text().unwrap());
-               //         let error = Command::new_error(SocketError {
-               //             error_type: SocketErrorType::ParseError,
-               //             message: e.to_string(),
-               //         });
-               //         error
-               //     }
-               // };
-               // tx_clone.send(command).await.unwrap();
+               let command: Command = match serde_json::from_str(msg.to_text().unwrap()) {
+                   Ok(msg) => msg,
+                   Err(e) => {
+                       debug!("Cant parse '{}' to JSON!", msg.to_text().unwrap());
+                       let error = Command::Error(SocketError {
+                           error_type: SocketErrorType::ParseError,
+                           message: e.to_string(),
+                       });
+                       error
+                   }
+               };
+               tx_clone.send(command).await.unwrap();
            }
         });
 
@@ -132,6 +132,7 @@ impl Server {
     async fn subscriber_loop(tx_in: Sender<Command>, mut rx_in: Receiver<Command>, tx_out: Sender<Command>, data_store_lock: Arc<RwLock<DataStore>>) {
         // Start by sending all data we have
         let data = data_store_lock.read().await.current_state.clone();
+        debug!("data: {:?}", data);
         tx_out.send(Command::InitialState(data)).await.unwrap();
 
         loop {

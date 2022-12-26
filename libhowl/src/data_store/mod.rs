@@ -1,14 +1,14 @@
-use std::collections::HashMap;
 use std::hash::Hash;
 
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use tokio::sync::mpsc::Sender;
 
 pub use crate::data_store::data_types::chart::Chart;
 pub use crate::data_store::data_types::data_type::DataType;
 use crate::structs::Command;
+use crate::utils::json_diff::Difference;
 
 mod data_types;
 mod utils;
@@ -22,7 +22,7 @@ impl DataStore {
     pub fn new(event_tx: Sender<Command>) -> Self {
         return Self {
             event_tx,
-            current_state: Value::Array(vec![])
+            current_state: json!({})
         };
     }
 
@@ -30,11 +30,12 @@ impl DataStore {
         let data_types: Vec<Box<dyn DataType + Send>> = vec![
             Box::new(Chart::new())
         ];
-        let mut current_object: HashMap<String, Value> = HashMap::new();
+        let old_object = self.current_state.clone();
         for data_type in data_types.iter() {
-            data_type.process_data(json, &mut current_object);
+            data_type.process_data(json, self.current_state.as_object_mut().unwrap());
         }
-        let data_event = Command::Data(Value::from(1));
+        let diff = old_object.difference(&self.current_state);
+        let data_event = Command::Data(diff);
         self.event_tx.send(data_event).await.unwrap();
     }
 }

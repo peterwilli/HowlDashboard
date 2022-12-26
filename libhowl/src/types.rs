@@ -1,0 +1,1 @@
+pub type StateObject = serde_json::Map<std::string::String, serde_json::Value>;

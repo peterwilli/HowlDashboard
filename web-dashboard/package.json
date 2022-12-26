@@ -16,7 +16,8 @@
     "webpack-dev-server": "^3.11.2"
   },
   "dependencies": {
-    "libhowl": "file:../libhowl/pkg"
+    "libhowl": "file:../libhowl/pkg",
+    "svelte-chartjs": "^3.1.0"
   },
   "scripts": {
     "build": "cross-env NODE_ENV=production webpack",

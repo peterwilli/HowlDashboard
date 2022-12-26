@@ -8,8 +8,13 @@ use pharos::Observable;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::spawn_local;
 use ws_stream_wasm::*;
-
-use crate::structs::CommandType;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
+use crate::client::base_client::BaseClient;
+use crate::structs::{Command, InitCommandType};
+use log::{warn, debug};
+use rand::distributions::Alphanumeric;
 
 mod utils;
 
@@ -95,7 +100,6 @@ impl Client {
                         debug!("ws_read loop ended!");
                         break;
                     }
-                    spawn_local()
                     let msg = msg.unwrap();
                     match msg {
                         WsMessage::Text(ref str) => {

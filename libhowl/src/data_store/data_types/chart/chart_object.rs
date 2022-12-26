@@ -12,6 +12,7 @@ pub enum ChartAxisXType {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChartObject {
     pub title: String,
     pub x_type: ChartAxisXType,

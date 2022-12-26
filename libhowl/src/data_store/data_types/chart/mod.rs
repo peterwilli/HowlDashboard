@@ -6,7 +6,8 @@ use serde_json::Value;
 use crate::data_store::data_types::chart::chart_object::{ChartAxisXType, ChartObject};
 use crate::data_store::data_types::data_type::DataType;
 use crate::data_store::utils::filter_title_objects;
-use crate::utils::{Slug, TimestampExt};
+use crate::types::StateObject;
+use crate::utils::{InjectDefaults, Slug, TimestampExt};
 
 mod chart_object;
 
@@ -25,12 +26,20 @@ impl DataType for Chart {
         return "Chart".to_string();
     }
 
-    fn process_data(&self, data: &Value, current_object: &mut HashMap<String, Value>) {
+    fn process_data(&self, data: &Value, current_object: &mut StateObject) {
         filter_title_objects(data, &mut |title, value| {
-            let mut chart: ChartObject = serde_json::from_value(current_object.entry(title.to_slug()).or_insert(serde_json::to_value(ChartObject {
-                title: title.to_string(),
-                ..Default::default()
-            }).unwrap()).to_owned()).unwrap();
+            let obj = match current_object.get(&title.to_slug()) {
+                Some(obj) => {
+                    obj.to_owned()
+                }
+                None => {
+                    serde_json::to_value(ChartObject {
+                        title: title.to_string(),
+                        ..Default::default()
+                    }).unwrap()
+                }
+            };
+            let mut chart: ChartObject = serde_json::from_value(obj).unwrap();
             if value.is_array() {
                 let arr = value.as_array().unwrap();
                 if arr.len() > 0 {
@@ -39,7 +48,8 @@ impl DataType for Chart {
                         chart.add_entries((0..arr.len()).map(|idx| {
                             return Value::from(idx)
                         }).collect(), arr.to_vec()).unwrap();
-                        let chart_value = serde_json::to_value(chart).unwrap();
+                        let mut chart_value = serde_json::to_value(chart).unwrap();
+                        chart_value.inject_defaults(self);
                         current_object.insert(title.to_slug(), chart_value);
                     }
                     else if first_obj.is_object() {
@@ -61,7 +71,8 @@ impl DataType for Chart {
                                     }
                                     return None;
                                 }).collect()]).unwrap();
-                                let chart_value = serde_json::to_value(chart).unwrap();
+                                let mut chart_value = serde_json::to_value(chart).unwrap();
+                                chart_value.inject_defaults(self);
                                 current_object.insert(title.to_slug(), chart_value);
                             }
                         }
@@ -69,6 +80,5 @@ impl DataType for Chart {
                 }
             }
         })
-
     }
 }

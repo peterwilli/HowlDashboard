@@ -1,7 +1,7 @@
 <script>
-	import Counter from "@/DashboardComponents/Counter.svelte";
 	import { Client } from "libhowl";
 	import { onMount } from "svelte";
+    import Chart from "@/DashboardComponents/Chart.svelte";
 
 	let data = {};
 
@@ -16,16 +16,16 @@
 			console.log("listenForData cb -> ", json);
 			data = Object.assign(data, json);
 		});
+		console.log("token", token);
 	})
 </script>
 
 <main>
-	{#each Object.entries(data) as [key, value] (key)}
-		{#if key == "categorical_number_data"}
-			{#each Object.entries(value) as [title, value2] (title)}
-				<h3>{title}</h3>
-				<Counter data={value2} />
-			{/each}
-		{/if}
-	{/each}
+	<div style="height: 300px;">
+		{#each Object.entries(data) as [key, value] (key)}
+			{#if value.dataType === "Chart"}
+			<Chart data={value}></Chart>
+			{/if}
+		{/each}
+	</div>
 </main>
