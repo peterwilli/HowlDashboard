@@ -1,4 +1,5 @@
 pub use client::Client;
+pub use structs::InitCommandType;
 
 #[cfg(feature = "default")]
 pub use server::Server;

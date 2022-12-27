@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::str::FromStr;
+use log::debug;
 
 use serde_json::Value;
 
@@ -59,18 +60,18 @@ impl DataType for Chart {
                             let allowed_keys = ["timestamp"];
                             if let Some(x_key) = obj.keys().find(|x| allowed_keys.contains(&x.as_str())) {
                                 chart.x_type = ChartAxisXType::DateTime;
+                                let all_but_x_keys = obj.keys().filter(|key| x_key != *key);
+                                let y_values = all_but_x_keys.map(|key| {
+                                    return arr.iter().map(|obj| {
+                                        obj.as_object().unwrap().get(key).unwrap().clone()
+                                    }).collect();
+                                }).collect();
                                 chart.add_entries(arr.iter().filter_map(|obj| {
                                     if x_key == "timestamp" {
                                         return Some(Value::from(obj.get(x_key).unwrap().as_u64().unwrap()))
                                     }
                                     return None;
-                                }).collect(), vec![obj.keys().filter(|key| x_key != *key).filter_map(|key| {
-                                    let obj = obj.get(key).unwrap();
-                                    if obj.is_number() {
-                                        return Some(obj.clone());
-                                    }
-                                    return None;
-                                }).collect()]).unwrap();
+                                }).collect(), y_values).unwrap();
                                 let mut chart_value = serde_json::to_value(chart).unwrap();
                                 chart_value.inject_defaults(self);
                                 current_object.insert(title.to_slug(), chart_value);
